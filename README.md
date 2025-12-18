@@ -1,0 +1,76 @@
+# audio-transcription
+
+WhisperX + Pyannote: 音频转录（Whisper）+ 说话人分离（Pyannote）+ 词级时间戳对齐（WhisperX）。
+
+## 安装（uv）
+
+```bash
+uv venv
+uv pip install -r requirements.txt
+```
+
+或直接使用 `pyproject.toml`：
+
+```bash
+uv pip install -e .
+```
+
+## 快速开始
+
+```bash
+audio-transcribe ./meeting.m4a \\
+  --device auto \\
+  --model large-v3 \\
+  --vad-method silero \\
+  --diarize \\
+  --hf-token "$HF_TOKEN" \\
+  --output-dir ./outputs \\
+  --format json --format txt --format srt
+```
+
+输出文件默认命名为：`outputs/<音频文件名>.(json|txt|srt|vtt)`
+
+## 配置文件
+
+支持 YAML / JSON，通过 `--config` 指定（CLI 参数会覆盖配置文件）。
+
+示例：`config.yaml`
+
+```yaml
+device: auto
+device_index: 0
+model: large-v3
+compute_type: float16
+batch_size: 16
+language: auto
+task: transcribe
+
+vad_method: silero
+vad_options:
+  vad_onset: 0.5
+  vad_offset: 0.363
+
+align: true
+align_model: null
+
+diarize: true
+diarize_model: null
+num_speakers: null
+min_speakers: null
+max_speakers: null
+
+formats: [json, txt, srt]
+output_dir: ./outputs
+```
+
+```bash
+audio-transcribe ./meeting.m4a --config config.yaml --hf-token "$HF_TOKEN"
+```
+
+## 常用参数
+
+- `--device auto|cuda|cpu`：默认 `auto`
+- `--compute-type float16|float32|int8`：CPU 通常用 `int8` 更省内存
+- `--diarize` + `--hf-token`：开启说话人分离（需要 HuggingFace Token）
+- `--vad-method silero|pyannote`：默认 `silero`（更不依赖 HF token）
+

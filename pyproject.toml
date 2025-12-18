@@ -1,0 +1,15 @@
+[project]
+name = "audio-transcription"
+version = "0.1.0"
+description = "WhisperX + Pyannote audio transcription with speaker diarization."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "whisperx",
+  "pyannote.audio",
+  "pyyaml",
+]
+
+[project.scripts]
+audio-transcribe = "audio_transcription.cli:main"
+
