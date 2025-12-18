@@ -21,7 +21,7 @@ uv pip install -e .
 audio-transcribe ./meeting.m4a \\
   --device auto \\
   --model large-v3 \\
-  --vad-method silero \\
+  --vad-method pyannote \\
   --diarize \\
   --hf-token "$HF_TOKEN" \\
   --output-dir ./outputs \\
@@ -44,8 +44,9 @@ compute_type: float16
 batch_size: 16
 language: auto
 task: transcribe
+trust_checkpoints: true
 
-vad_method: silero
+vad_method: pyannote
 vad_options:
   vad_onset: 0.5
   vad_offset: 0.363
@@ -72,5 +73,5 @@ audio-transcribe ./meeting.m4a --config config.yaml --hf-token "$HF_TOKEN"
 - `--device auto|cuda|cpu`：默认 `auto`
 - `--compute-type float16|float32|int8`：CPU 通常用 `int8` 更省内存
 - `--diarize` + `--hf-token`：开启说话人分离（需要 HuggingFace Token）
-- `--vad-method silero|pyannote`：默认 `silero`（更不依赖 HF token）
-
+- `--vad-method silero|pyannote`：默认 `pyannote`（`silero` 会通过 `torch.hub` 访问 GitHub，离线/证书环境更容易失败）
+- `--ca-bundle /path/to/ca.pem`：HTTPS 证书校验失败时，指定自定义 CA（会设置 `SSL_CERT_FILE/REQUESTS_CA_BUNDLE`）

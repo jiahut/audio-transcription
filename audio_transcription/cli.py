@@ -80,6 +80,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--threads", type=int, default=None)
     p.add_argument("--download-root", default=None)
     p.add_argument("--local-files-only", action="store_true", default=None)
+    p.add_argument("--ca-bundle", type=Path, default=None, help="CA bundle path for HTTPS (sets SSL_CERT_FILE/REQUESTS_CA_BUNDLE)")
 
     # VAD
     p.add_argument("--vad-method", choices=["silero", "pyannote"], default=None)
@@ -100,6 +101,14 @@ def build_parser() -> argparse.ArgumentParser:
 
     # ASR extra options
     p.add_argument("--asr-option", action="append", default=None, metavar="KEY=VALUE", help="Pass-through ASR option")
+
+    # Torch serialization
+    p.add_argument(
+        "--trust-checkpoints",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="When enabled, default checkpoint loads to weights_only=False for compatibility (PyTorch 2.6+).",
+    )
 
     # Output
     p.add_argument("--output-dir", type=Path, default=None)
@@ -128,6 +137,7 @@ def _resolve_config(args: argparse.Namespace) -> AppConfig:
         "task",
         "threads",
         "download_root",
+        "ca_bundle",
         "align",
         "align_model",
         "interpolate_method",
@@ -138,6 +148,7 @@ def _resolve_config(args: argparse.Namespace) -> AppConfig:
         "max_speakers",
         "output_dir",
         "print_stdout",
+        "trust_checkpoints",
     ]:
         value = getattr(args, key)
         if value is not None:
@@ -186,6 +197,12 @@ def main(argv: list[str] | None = None) -> int:
     _validate_inputs(audio_paths)
 
     cfg = _resolve_config(args)
+    if cfg.ca_bundle is not None:
+        os.environ["SSL_CERT_FILE"] = str(cfg.ca_bundle)
+        os.environ["REQUESTS_CA_BUNDLE"] = str(cfg.ca_bundle)
+        os.environ["CURL_CA_BUNDLE"] = str(cfg.ca_bundle)
+    if cfg.diarize and not cfg.hf_token:
+        raise SystemExit("Diarization enabled but no HuggingFace token. Use --hf-token / set HF_TOKEN, or pass --no-diarize.")
 
     if args.dump_config:
         dump_config_file(args.dump_config, config_to_dict(cfg))
@@ -233,4 +250,3 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main(sys.argv[1:]))
-

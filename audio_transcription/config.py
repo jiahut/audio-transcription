@@ -22,9 +22,11 @@ class AppConfig:
     threads: int = 4
     download_root: str | None = None
     local_files_only: bool = False
+    ca_bundle: Path | None = None
 
     # VAD (used by WhisperX pipeline)
-    vad_method: VadMethod = "silero"
+    # Default to pyannote VAD to avoid torch.hub GitHub downloads (silero uses torch.hub).
+    vad_method: VadMethod = "pyannote"
     vad_options: dict[str, Any] = field(default_factory=dict)
 
     # Alignment
@@ -33,7 +35,7 @@ class AppConfig:
     interpolate_method: str = "nearest"
 
     # Diarization
-    diarize: bool = True
+    diarize: bool = False
     diarize_model: str | None = None
     num_speakers: int | None = None
     min_speakers: int | None = None
@@ -49,6 +51,11 @@ class AppConfig:
 
     # Advanced passthroughs
     asr_options: dict[str, Any] = field(default_factory=dict)
+
+    # PyTorch 2.6+ compatibility: some upstream libs call torch.load(weights_only=None),
+    # which defaults to weights_only=True and may break loading pyannote/lightning checkpoints.
+    # When True, we default lightning_fabric checkpoint loading to weights_only=False.
+    trust_checkpoints: bool = True
 
 
 def normalize_language(language: str | None) -> str | None:
@@ -70,6 +77,8 @@ def config_from_dict(data: dict[str, Any]) -> AppConfig:
     data = dict(data)
     if "output_dir" in data:
         data["output_dir"] = coerce_path(data["output_dir"])
+    if "ca_bundle" in data and data["ca_bundle"] is not None:
+        data["ca_bundle"] = coerce_path(data["ca_bundle"])
     if "formats" in data:
         formats = data["formats"]
         if isinstance(formats, str):
@@ -85,5 +94,5 @@ def config_to_dict(cfg: AppConfig) -> dict[str, Any]:
     d["output_dir"] = str(cfg.output_dir)
     d["formats"] = list(cfg.formats)
     d["language"] = cfg.language or "auto"
+    d["ca_bundle"] = str(cfg.ca_bundle) if cfg.ca_bundle is not None else None
     return d
-
