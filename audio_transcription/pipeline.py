@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import gc
+import os
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -98,6 +99,85 @@ def _resolve_device(cfg: AppConfig) -> str:
         return "cpu"
 
 
+def _maybe_configure_certifi_ca_bundle() -> None:
+    if os.environ.get("SSL_CERT_FILE") or os.environ.get("REQUESTS_CA_BUNDLE") or os.environ.get("CURL_CA_BUNDLE"):
+        return
+    try:
+        import certifi
+    except Exception:
+        return
+    ca_bundle = certifi.where()
+    os.environ.setdefault("SSL_CERT_FILE", ca_bundle)
+    os.environ.setdefault("REQUESTS_CA_BUNDLE", ca_bundle)
+    os.environ.setdefault("CURL_CA_BUNDLE", ca_bundle)
+
+
+def _default_cache_dir() -> Path:
+    xdg_cache = os.environ.get("XDG_CACHE_HOME")
+    base = Path(xdg_cache) if xdg_cache else Path.home() / ".cache"
+    return base / "audio-transcription"
+
+
+def _nltk_data_dir(cfg: AppConfig) -> Path:
+    if cfg.download_root:
+        return Path(cfg.download_root) / "nltk_data"
+    return _default_cache_dir() / "nltk_data"
+
+
+def _ensure_nltk_punkt(cfg: AppConfig) -> None:
+    try:
+        import nltk
+    except Exception:
+        return
+
+    data_dir = _nltk_data_dir(cfg)
+    data_dir.mkdir(parents=True, exist_ok=True)
+
+    os.environ.setdefault("NLTK_DATA", str(data_dir))
+    if str(data_dir) not in nltk.data.path:
+        nltk.data.path.insert(0, str(data_dir))
+
+    def has(resource: str) -> bool:
+        try:
+            nltk.data.find(resource)
+            return True
+        except LookupError:
+            return False
+
+    missing: list[str] = []
+    if not has("tokenizers/punkt/english.pickle"):
+        missing.append("punkt")
+    if not has("tokenizers/punkt_tab/english/"):
+        missing.append("punkt_tab")
+    if not missing:
+        return
+
+    _maybe_configure_certifi_ca_bundle()
+
+    for pkg in missing:
+        try:
+            nltk.download(pkg, download_dir=str(data_dir), quiet=True)
+        except Exception:
+            # We'll re-check below and raise a clear error if still missing.
+            pass
+
+    still_missing: list[str] = []
+    if not has("tokenizers/punkt/english.pickle"):
+        still_missing.append("punkt")
+    if not has("tokenizers/punkt_tab/english/"):
+        still_missing.append("punkt_tab")
+    if still_missing:
+        raise RuntimeError(
+            "WhisperX alignment requires NLTK tokenizer data but it is missing: "
+            f"{', '.join(still_missing)}. "
+            f"Expected under NLTK_DATA={data_dir}. "
+            "Fix by running `python -c \"import nltk; nltk.download('punkt'); nltk.download('punkt_tab')\"`, "
+            "or point NLTK_DATA at a pre-downloaded nltk_data directory. "
+            "If you are behind a custom CA/proxy, pass `--ca-bundle /path/to/ca.pem`. "
+            "To bypass this step, disable alignment with `--no-align`."
+        )
+
+
 @dataclass(frozen=True)
 class RunResult:
     audio_path: str
@@ -150,6 +230,7 @@ def run_one(audio_path: Path, cfg: AppConfig) -> RunResult:
     result: dict[str, Any] = model.transcribe(audio, batch_size=cfg.batch_size)
 
     if cfg.align:
+        _ensure_nltk_punkt(cfg)
         align_model, metadata = whisperx.load_align_model(
             language_code=result.get("language") or (cfg.language or "en"),
             device=device,

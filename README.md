@@ -75,3 +75,15 @@ audio-transcribe ./meeting.m4a --config config.yaml --hf-token "$HF_TOKEN"
 - `--diarize` + `--hf-token`：开启说话人分离（需要 HuggingFace Token）
 - `--vad-method silero|pyannote`：默认 `pyannote`（`silero` 会通过 `torch.hub` 访问 GitHub，离线/证书环境更容易失败）
 - `--ca-bundle /path/to/ca.pem`：HTTPS 证书校验失败时，指定自定义 CA（会设置 `SSL_CERT_FILE/REQUESTS_CA_BUNDLE`）
+
+## 常见报错
+
+### NLTK: `Resource punkt_tab not found` / SSL 证书失败
+
+WhisperX 的 `align`（词级时间戳对齐）依赖 NLTK 的分句模型数据。如果环境无法联网或 HTTPS 证书校验失败，会在对齐阶段报错。
+
+- 方案 1（推荐）：提前下载 NLTK 数据
+  - `python -c "import nltk; nltk.download('punkt'); nltk.download('punkt_tab')"`
+  - 如需指定目录：`NLTK_DATA=/path/to/nltk_data python -c "import nltk; nltk.download('punkt', download_dir='$NLTK_DATA'); nltk.download('punkt_tab', download_dir='$NLTK_DATA')"`
+- 方案 2：证书环境问题时，使用 `--ca-bundle /path/to/ca.pem`
+- 方案 3：不需要词级对齐时，直接关闭：`--no-align`
