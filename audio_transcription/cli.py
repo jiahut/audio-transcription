@@ -97,7 +97,11 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--num-speakers", type=int, default=None)
     p.add_argument("--min-speakers", type=int, default=None)
     p.add_argument("--max-speakers", type=int, default=None)
-    p.add_argument("--hf-token", default=None, help="HuggingFace token (or set HF_TOKEN env var)")
+    p.add_argument(
+        "--hf-token",
+        default=None,
+        help="HuggingFace token (prefer setting HF_TOKEN env var instead of passing via CLI)",
+    )
 
     # ASR extra options
     p.add_argument("--asr-option", action="append", default=None, metavar="KEY=VALUE", help="Pass-through ASR option")
@@ -202,7 +206,13 @@ def main(argv: list[str] | None = None) -> int:
         os.environ["REQUESTS_CA_BUNDLE"] = str(cfg.ca_bundle)
         os.environ["CURL_CA_BUNDLE"] = str(cfg.ca_bundle)
     if cfg.diarize and not cfg.hf_token:
-        raise SystemExit("Diarization enabled but no HuggingFace token. Use --hf-token / set HF_TOKEN, or pass --no-diarize.")
+        print(
+            "WARNING: Diarization is enabled but no HuggingFace token was found. "
+            "Diarization may fail if the model requires authentication. "
+            "Recommended: set HF_TOKEN (or HUGGINGFACE_TOKEN) in the environment. "
+            "Alternatively pass --hf-token, or disable diarization with --no-diarize.",
+            file=sys.stderr,
+        )
 
     if args.dump_config:
         dump_config_file(args.dump_config, config_to_dict(cfg))
